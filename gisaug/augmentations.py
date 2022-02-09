@@ -1,9 +1,9 @@
-from numbers import Number
 from typing import Sized, Union
 
 import numpy as np
+from scipy.interpolate import interp1d
 
-from validations import is_valid_probability, are_valid_probability_bounds
+from validations import is_valid_coefficient, is_valid_probability, are_valid_bounds, are_valid_probability_bounds
 
 
 class DropRandomPoints:
@@ -55,3 +55,70 @@ class DropRandomPoints:
         keep_probabilities = np.random.uniform(size=len(x))
 
         return x[keep_probabilities < self.keep_probability]
+
+
+class Stretch:
+    """
+    Augmentation, that makes the curve longer in the time direction by inserting new points. Value of
+    points are interpolated from the closest observations
+
+    Parameters
+    ----------
+    c : float or an iterable with 2 floats
+        A stretching coefficient for the curve. E.g. if `c` is 3.6, the augmented curve will be 3.6 times longer
+        than the original
+    """
+
+    @staticmethod
+    def stretch_curve(x: np.array, stretching_coef: int) -> np.array:
+        """Stretch `x` so that it's size will be `len(x) * stretching_coef`"""
+
+        scope = np.arange(len(x))
+        f = interp1d(scope, x)
+
+        new_points = np.linspace(0, scope[-1], int(len(scope) * stretching_coef))
+        interpolated_array = f(new_points)
+
+        return interpolated_array
+
+    def __init__(self, c: Union[float, Sized]):
+        self.c = c
+
+        self.should_generate_parameters = None
+        self.stretching_coef = None
+
+    def _validate_parameters(self):
+        try:
+            is_valid_coefficient(self.c)
+            self.should_generate_parameters = False
+            self.stretching_coef = self.c
+
+        except (ValueError, TypeError):
+            try:
+                are_valid_bounds(self.c)
+                self.should_generate_parameters = True
+
+            except (ValueError, TypeError):
+                raise ValueError(f"{self.c} can't be validated as a parameter and is probably incorrect")
+
+    def __call__(self, x: np.array) -> np.array:
+        """Make `x` longer by inserting interpolated points between the existing observations
+
+        Parameters
+        ----------
+        x : array_like
+            A numeric array with the curve to augment
+
+        Returns
+        -------
+        numpy.array
+            Augmented array with length ~ len(x) * c
+        """
+
+        if self.should_generate_parameters:
+            self.stretching_coef = np.random.uniform(self.c[0], self.c[1])
+
+        stretch_times = int(self.stretching_coef)
+        augmented_array = self.stretch_curve(x, stretch_times)
+
+        return augmented_array
