@@ -45,3 +45,17 @@ def are_valid_bounds(bounds: Sized) -> bool:
 
 def are_valid_probability_bounds(probs: Sized) -> bool:
     return are_valid_bounds(probs) and is_valid_probability(probs[0]) and is_valid_probability(probs[1])
+
+
+def is_valid_coefficient(c: Number) -> bool:
+    """Check if `c` is a valid not negative float"""
+
+    error_message = f"{c} is not a vavild coefficient"
+
+    if not isinstance(c, Number):
+        raise TypeError(f"{error_message}. It must be a number")
+
+    if not c >= 0:
+        raise ValueError(f"{error_message}. Please provide a positive number")
+
+    return True
