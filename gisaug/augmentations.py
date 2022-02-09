@@ -25,15 +25,17 @@ class DropRandomPoints:
         self.keep_probability = None
 
     def _validate_parameters(self):
-        if is_valid_probability(self.p):
+        try:
+            is_valid_probability(self.p)
             self.should_generate_parameters = False
             self.keep_probability = self.p
 
-        elif are_valid_probability_bounds(self.p):
+        except (ValueError, TypeError):
+            is_valid = are_valid_probability_bounds(self.p)
             self.should_generate_parameters = True
 
-        else:
-            raise ValueError(f"{self.p} can't be validated and probably contains wrong values.")
+            if not is_valid:
+                raise ValueError(f"{self.p} can't be validated as a parameter and is probably incorrect")
 
     def __call__(self, x: np.array) -> np.array:
         """Make `x` shorter by dropping random points
@@ -93,12 +95,11 @@ class Stretch:
             self.should_generate_parameters = False
             self.stretching_coef = self.c
 
-        except (ValueError, TypeError):
-            try:
-                are_valid_bounds(self.c)
-                self.should_generate_parameters = True
+        except (ValueError, TypeError) as error:
+            is_valid = are_valid_bounds(self.c)
+            self.should_generate_parameters = True
 
-            except (ValueError, TypeError):
+            if not is_valid:
                 raise ValueError(f"{self.c} can't be validated as a parameter and is probably incorrect")
 
     def __call__(self, x: np.array) -> np.array:
