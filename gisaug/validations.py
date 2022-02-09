@@ -18,7 +18,7 @@ def is_valid_probability(p: Number) -> bool:
         raise TypeError(f"{type(p)} is not a valid type for probability! Please, provide a number between 0 and 1")
 
     if not 0 <= p <= 1:
-        raise WrongProbabilityValueError
+        raise WrongProbabilityValueError(p)
 
     return True
 
