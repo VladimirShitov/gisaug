@@ -13,21 +13,44 @@ class Augmentation:
     def __call__(self, x: np.array) -> np.array:
         raise NotImplementedError
 
-    def visualize(self, x: np.array, vertical=True, figsize=(15, 5)):
+    def visualize(self, x: np.array, vertical=True, figwidth=8, figheight=8):
         import matplotlib.pyplot as plt
 
-        fig, axes = plt.subplots(nrows=3, figsize=figsize)
-
-        axes[0].plot(x)
-
         augmented_curve = self(x)
-        axes[1].plot(augmented_curve)
 
-        axes[2].plot(x, label="Original curve")
-        axes[2].plot(augmented_curve, label="Augmented curve")
-        axes[2].legend()
+        if vertical:
+            fig, axes = plt.subplots(ncols=3, figsize=(figheight, figwidth))
 
-        return axes
+            original_curve_time = np.arange(len(x))
+            axes[0].plot(x, original_curve_time)
+            axes[0].invert_xaxis()
+            axes[0].invert_yaxis()
+
+            augmented_curve_time = np.arange(len(augmented_curve))
+            axes[1].plot(augmented_curve, augmented_curve_time)
+            axes[1].invert_xaxis()
+            axes[1].invert_yaxis()
+
+            axes[2].plot(x, original_curve_time, label="Original curve")
+            axes[2].plot(augmented_curve, augmented_curve_time, label="Augmented curve")
+            axes[2].invert_xaxis()
+            axes[2].invert_yaxis()
+
+        else:
+            fig, axes = plt.subplots(nrows=3, figsize=(figwidth, figheight))
+            axes[0].plot(x)
+            axes[1].plot(augmented_curve)
+
+            axes[2].plot(x, label="Original curve")
+            axes[2].plot(augmented_curve, label="Augmented curve")
+
+        axes[0].set_title("Original curve")
+        axes[1].set_title("Augmented curve")
+
+        axes[2].legend(loc="upper right")
+        axes[2].set_title("Curves together")
+
+        return fig, axes
 
 
 class DropRandomPoints(Augmentation):
@@ -83,6 +106,13 @@ class DropRandomPoints(Augmentation):
         keep_probabilities = np.random.uniform(size=len(x))
 
         return x[keep_probabilities < self.keep_probability]
+
+    def visualize(self, x: np.array, vertical=True, figwidth=8, figheight=8):
+        fig, axes = super().visualize(x, vertical, figwidth, figheight)
+        fig.suptitle(f"p: {round(self.keep_probability, 3)}", fontweight="bold")
+        fig.tight_layout()
+
+        return axes
 
 
 class Stretch(Augmentation):
@@ -151,3 +181,10 @@ class Stretch(Augmentation):
         augmented_array = self.stretch_curve(x, stretch_times)
 
         return augmented_array
+
+    def visualize(self, x: np.array, vertical=True, figwidth=8, figheight=8):
+        fig, axes = super().visualize(x, vertical, figwidth, figheight)
+        fig.suptitle(f"c: {round(self.stretching_coef, 3)}", fontweight="bold")
+        fig.tight_layout()
+
+        return axes
