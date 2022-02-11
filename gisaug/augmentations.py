@@ -13,8 +13,24 @@ class Augmentation:
     def __call__(self, x: np.array) -> np.array:
         raise NotImplementedError
 
-    def visualize(self):
-        raise NotImplementedError
+    def visualize(self, x: np.array, vertical=True, figsize=(15, 5)):
+        import matplotlib.pyplot as plt
+
+        fig, axes = plt.subplots(nrows=3, figsize=figsize)
+
+        axes[0].plot(x)
+
+        augmented_curve = self(x)
+        axes[1].plot(augmented_curve)
+
+        axes[2].plot(x, label="Original curve")
+        axes[2].plot(augmented_curve, label="Augmented curve")
+        axes[2].legend()
+
+        return axes
+
+
+
 
 
 class DropRandomPoints(Augmentation):
