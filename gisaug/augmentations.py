@@ -30,9 +30,6 @@ class Augmentation:
         return axes
 
 
-
-
-
 class DropRandomPoints(Augmentation):
     """
     Augmentation, that randomly drops points from time series to make it shorter in the time, but generally
@@ -78,7 +75,7 @@ class DropRandomPoints(Augmentation):
             Augmented array with length ~ p * len(x)
         """
 
-        if self.should_generate_parameters():
+        if self.should_generate_parameters:
             self.keep_probability = np.random.uniform(self.p[0], self.p[1])
 
         keep_probabilities = np.random.uniform(size=len(x))
