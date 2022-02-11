@@ -177,7 +177,7 @@ class Stretch(Augmentation):
         if self.should_generate_parameters:
             self.stretching_coef = np.random.uniform(self.c[0], self.c[1])
 
-        stretch_times = int(self.stretching_coef)
+        stretch_times = self.stretching_coef
         augmented_array = self.stretch_curve(x, stretch_times)
 
         return augmented_array
