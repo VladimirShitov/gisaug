@@ -3,7 +3,7 @@ from typing import Sized, Union
 import numpy as np
 from scipy.interpolate import interp1d
 
-from validations import is_valid_coefficient, is_valid_probability, are_valid_bounds, are_valid_probability_bounds
+from .validations import is_valid_coefficient, is_valid_probability, are_valid_bounds, are_valid_probability_bounds
 
 
 class DropRandomPoints:
