@@ -48,6 +48,8 @@ class DropRandomPoints(Augmentation):
         self.should_generate_parameters = None
         self.keep_probability = None
 
+        self._validate_parameters()
+
     def _validate_parameters(self):
         try:
             is_valid_probability(self.p)
@@ -112,6 +114,8 @@ class Stretch(Augmentation):
 
         self.should_generate_parameters = None
         self.stretching_coef = None
+
+        self._validate_parameters()
 
     def _validate_parameters(self):
         try:
