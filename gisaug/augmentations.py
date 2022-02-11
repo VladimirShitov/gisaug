@@ -6,7 +6,18 @@ from scipy.interpolate import interp1d
 from .validations import is_valid_coefficient, is_valid_probability, are_valid_bounds, are_valid_probability_bounds
 
 
-class DropRandomPoints:
+class Augmentation:
+    def _validate_parameters(self):
+        raise NotImplementedError
+
+    def __call__(self, x: np.array) -> np.array:
+        raise NotImplementedError
+
+    def visualize(self):
+        raise NotImplementedError
+
+
+class DropRandomPoints(Augmentation):
     """
     Augmentation, that randomly drops points from time series to make it shorter in the time, but generally
     preserve shape
@@ -59,7 +70,7 @@ class DropRandomPoints:
         return x[keep_probabilities < self.keep_probability]
 
 
-class Stretch:
+class Stretch(Augmentation):
     """
     Augmentation, that makes the curve longer in the time direction by inserting new points. Value of
     points are interpolated from the closest observations
