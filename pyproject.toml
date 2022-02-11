@@ -5,8 +5,10 @@ description = "A library for Time Series augmentation. Created for geological da
 authors = ["Vladimir Shitov <vladimirshitov98@gmail.com>"]
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "3.8"
 numpy = "^1.22.2"
+matplotlib = "^3.5.1"
+scipy = "^1.8.0"
 
 [tool.poetry.dev-dependencies]
 
