@@ -233,6 +233,8 @@ class DropRandomRegions(Augmentation):
         self.dropping_proportions = None
         self.regions_dropped = None
 
+        self._validate_parameters()
+
     def _validate_parameters(self):
         try:
             is_valid_positive_integer(self.k)
