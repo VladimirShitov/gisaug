@@ -289,3 +289,14 @@ class DropRandomRegions(Augmentation):
             )
 
         return augmented_array
+
+    def visualize(self, x: np.array, vertical=True, figwidth=8, figheight=8):
+        fig, axes = super().visualize(x, vertical, figwidth, figheight)
+
+        # Convert array of probabilities to string: e.g [0.123, 0.857, 0.406] -> "0.12, 0.86, 0.41"
+        dropping_probabilities = ", ".join(map(str, self.dropping_proportions.round(2)))
+
+        fig.suptitle(f'k: {self.regions_dropped}, p: [{dropping_probabilities}]', fontweight="bold")
+        fig.tight_layout()
+
+        return axes
