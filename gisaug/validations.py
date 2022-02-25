@@ -59,3 +59,17 @@ def is_valid_coefficient(c: Number) -> bool:
         raise ValueError(f"{error_message}. Please provide a positive number")
 
     return True
+
+
+def is_valid_positive_integer(k: int) -> bool:
+    """Check if `k` is a valid integer"""
+
+    error_message = f"{k} is not a valid parameter!"
+
+    if not isinstance(k, int):
+        raise TypeError(f"{error_message}. Please provide a positive integer")
+
+    if not k > 0:
+        raise ValueError(f"{error_message}. Please provide a positive integer > 0")
+
+    return True
