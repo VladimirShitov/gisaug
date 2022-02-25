@@ -277,9 +277,9 @@ class DropRandomRegions(Augmentation):
             self.regions_dropped = np.random.randint(self.k[0], self.k[1])
 
         if self.should_generate_p:
-            self.dropping_proportions = np.random.uniform(size=self.regions_dropped)
+            self.dropping_proportions = np.random.uniform(low=self.p[0], high=self.p[1], size=self.regions_dropped)
         else:
-            self.dropping_proportions = np.array([self.p])
+            self.dropping_proportions = np.ones(shape=self.regions_dropped) * self.p
 
         augmented_array = self.remove_random_region(x, region_length=int(len(x) * self.dropping_proportions[0]))
 
