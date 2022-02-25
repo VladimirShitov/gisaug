@@ -3,8 +3,8 @@ from typing import Sized, Union
 import numpy as np
 from scipy.interpolate import interp1d
 
-from .validations import is_valid_coefficient, is_valid_probability, are_valid_bounds, are_valid_probability_bounds
-
+from .validations import is_valid_coefficient, is_valid_probability, are_valid_bounds, are_valid_probability_bounds, \
+                         is_valid_positive_integer
 
 class Augmentation:
     def _validate_parameters(self):
@@ -188,3 +188,104 @@ class Stretch(Augmentation):
         fig.tight_layout()
 
         return axes
+
+
+class DropRandomRegions(Augmentation):
+    """
+    Augmentation, that randomly drops regions from time series to make it shorter in the time direction
+
+    Parameters
+    ----------
+    p : float or tuple of 2 floats
+        A proportion of the length of the dropping region to the original curve length. E.g. p=0.5 means that half of
+        the curve will be dropped. `p` can be a single number or iterable with 2 elements.
+        If tuple of two numbers is provided (e.g. (`a`, `b`)), the proportion will be chosen randomly and uniformly
+        between `a` and `b` on each run.
+    k : int or tuple with 2 ints
+        Number of regions to drop. E.g. if p=0.5 and k=2 than half of the curve will be dropped first, and than another
+        half of the new curve will be dropped. Generally, augmented curve length is proportional to p^k of the
+        original curve length.
+    """
+    @staticmethod
+    def remove_region(x: np.array, region_start: int, region_end: int) -> np.array:
+        """Remove region from `region_start` to `region_end` from `x`"""
+        new_array = x[:region_start].tolist()
+        new_array.extend(x[region_end:].tolist())
+
+        return np.array(new_array)
+
+    @staticmethod
+    def remove_random_region(x: np.array, region_length: int) -> np.array:
+        """Remove random region of length `region_size` from `x`"""
+
+        dropping_start = int(np.random.uniform(0, len(x) - region_length))
+
+        return DropRandomRegions.remove_region(
+            x, region_start=dropping_start, region_end=dropping_start + region_length
+        )
+
+    def __init__(self, p, k):
+        self.p = p
+        self.k = k
+
+        self.should_generate_p = None
+        self.should_generate_k = None
+        self.dropping_proportions = None
+        self.regions_dropped = None
+
+    def _validate_parameters(self):
+        try:
+            is_valid_positive_integer(self.k)
+            self.should_generate_k = False
+            self.regions_dropped = self.k
+
+        except (ValueError, TypeError):
+            is_valid = are_valid_bounds(self.k)
+            self.should_generate_k = True
+
+            if not is_valid:
+                raise ValueError(f"{self.k} can't be validated as a parameter k and is probably incorrect")
+
+        try:
+            is_valid_probability(self.p)
+            self.should_generate_p = False
+
+        except (ValueError, TypeError):
+            is_valid = are_valid_probability_bounds(self.p)
+            self.should_generate_p = True
+
+            if not is_valid:
+                raise ValueError(f"{self.p} can't be validated as a parameter p and is probably incorrect")
+
+    def __call__(self, x: np.array) -> np.array:
+        """Make `x` shorter by removing random regions from it
+
+        Parameters
+        ----------
+        x : array_like
+            A numeric array with the curve to augment
+
+        Returns
+        -------
+        numpy.array
+            Augmented array with length ~ len(x) * p^k
+        """
+
+        if self.should_generate_k:
+            self.regions_dropped = np.random.randint(self.k[0], self.k[1])
+
+        if self.should_generate_p:
+            self.dropping_proportions = np.random.uniform(size=self.regions_dropped)
+        else:
+            self.dropping_proportions = np.array([self.p])
+
+        augmented_array = self.remove_random_region(x, region_length=int(len(x) * self.dropping_proportions[0]))
+
+        for i in range(1, self.regions_dropped):
+            dropping_region_length = int(len(augmented_array) * self.dropping_proportions[i])
+
+            augmented_array = self.remove_random_region(
+                augmented_array, region_length=dropping_region_length
+            )
+
+        return augmented_array
