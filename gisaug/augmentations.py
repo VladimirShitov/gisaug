@@ -1,4 +1,4 @@
-from typing import Sized, Union
+from typing import Sized, Union, Optional
 
 import numpy as np
 from scipy.interpolate import interp1d
@@ -301,6 +301,210 @@ class DropRandomRegions(Augmentation):
         dropping_probabilities = numbers_array_to_string(self.dropping_proportions)
 
         fig.suptitle(f'k: {self.regions_dropped}, p: [{dropping_probabilities}]', fontweight="bold")
+        fig.tight_layout()
+
+        return axes
+
+
+class ChangeAmplitude(Augmentation):
+    """
+    Augmentation, that randomly drops regions from time series to make it shorter in the time direction
+
+    Parameters
+    ----------
+    c : float or tuple of 2 floats
+        A multiplying coefficient for the amplitute. E.g., if c=0.8 means that the amplitude will become 20% smaller.
+        If tuple of two numbers is provided (e.g. (`a`, `b`)), the coefficient will be chosen randomly and uniformly
+        between `a` and `b` on each run.
+    k : int or tuple with 2 integers
+        Number of regions to augment. E.g. if c=0.8 and k=2, the amplitude of 2 regions will decrease by 20%. Note that
+        the regions can overlap. If `c` is a tuple, new coefficient is generated for each region.
+    region_start_fraction : float or tuple of 2 floats
+        Proportion of the start of the augmented region to the length of the curve. E.g., if region_start_fraction=0.1,
+        augmentation will not affect first 10% of the curve. If tuple of two numbers is provided (e.g. (`a`, `b`)),
+        the proportion will be chosen randomly and uniformly between `a` and `b` for each region.
+    region_end_fraction : float or tuple of 2 floats
+        Proportion of the end of the augmented region to the length of the curve. E.g., if region_end_fraction=0.8,
+        augmentation will not affect last 20% of the curve. If tuple of two numbers is provided (e.g. (`a`, `b`)),
+        the proportion will be chosen randomly and uniformly between `a` and `b` for each region.
+    clip : tuple of 2 floats (optional)
+        Minimum and maximum possible value of the curve amplitude. E.g., if clip=(0, 1), the amplitude of the augmented
+        curve will be clipped between 0 and 1.
+    """
+    @staticmethod
+    def change_region_amplitude(
+            x: np.array, coef: float, from_: int = 0, to: Optional[int] = None, clip: Optional[tuple] = None
+    ) -> np.array:
+        """Multiply each point of `x` by `coef` between `from` and `to` indexes
+
+        Parameters
+        ----------
+        x : numpy.array
+            A numeric array with the timeseries to change
+        coef : float
+            A coefficient by which the interval of the `x` is multiplied. If absolute value of `coef` is less than 1,
+            amplitude of the curve will decrease, otherwise it will increase. Be careful with negative `coef` (as it
+            will mirror the curve) and with `clip` parameter
+        from_ : int = 0
+            Start of the interval of the curve to be multiplied by `coef`
+        to : Optional[int] = None
+            End of the interval (exclusive) of the curve to be multiplied by `coef`
+        clip : Optional[tuple] = None
+            If set, must be a tuple with 2 elements: minumum and maximum possible values of the amplitude. E.g. if
+            curve values must be between 0 and 1, provide clip=(0, 1)
+
+        Returns
+        -------
+        numpy.array
+            Augmented array with an interval multiplied by `coef`
+        """
+        if to is None:
+            to = len(x)
+
+        new_array = x.copy()
+        new_array[from_: to] *= coef
+
+        if clip is not None:
+            new_array = np.clip(new_array, clip[0], clip[1])
+
+        return new_array
+
+    def __init__(
+           self, c: Union[float, Sized], k: Union[int, Sized], region_start_fraction: Union[float, Sized] = 0,
+           region_end_fraction: Optional[Union[float, Sized]] = None, clip: Optional[tuple] = None
+    ):
+        self.c = c
+        self.k = k
+        self.region_start_fraction = region_start_fraction
+        self.region_end_fraction = region_end_fraction or 1
+        self.clip = clip
+
+        self.multiplying_coefs = None
+        self.n_regions = None
+        self.region_starts = None
+        self.region_ends = None
+        self.should_generate_coef = None
+        self.should_generate_k = None
+        self.should_generate_start = None
+        self.should_generate_end = None
+
+        self._validate_parameters()
+        self._generate_parameters()
+
+    def _validate_parameters(self):
+        # validate c
+        try:
+            is_valid_coefficient(self.c)
+            self.should_generate_coef = False
+
+        except (ValueError, TypeError):
+            is_valid = are_valid_bounds(self.c)
+            self.should_generate_coef = True
+
+            if not is_valid:
+                raise ValueError(f"{self.c} can't be validated as parameter c and is probably incorrect")
+
+        # validate k
+        try:
+            is_valid_positive_integer(self.k)
+            self.should_generate_k = False
+
+        except (ValueError, TypeError):
+            is_valid = are_valid_bounds(self.k)
+            self.should_generate_k = True
+
+            if not is_valid:
+                raise ValueError(f"{self.k} can't be validated as a parameter k and is probably incorrect")
+
+        # validate region_start_fraction
+        try:
+            # Though fraction is not probability, it has the same properties (i.e. float between 0 and 1)
+            is_valid_probability(self.region_start_fraction)
+            self.should_generate_start = False
+
+        except (ValueError, TypeError):
+            is_valid = are_valid_probability_bounds(self.region_start_fraction)
+            self.should_generate_start = True
+
+            if not is_valid:
+                raise ValueError(f"{self.region_start_fraction} can't be validated as a parameter "
+                                 f"region_start_fraction and is probably incorrect")
+
+        # validate region_end_fraction
+        try:
+            is_valid_probability(self.region_end_fraction)
+            self.should_generate_end = False
+
+        except (ValueError, TypeError):
+            is_valid = are_valid_probability_bounds(self.region_end_fraction)
+            self.should_generate_end = True
+
+            if not is_valid:
+                raise ValueError(f"{self.region_end_fraction} can't be validated as a parameter "
+                                 f"region_end_fraction and is probably incorrect")
+
+        # Check that start is less than end or that their generation regions do not intersect
+        if np.min(self.region_end_fraction) <= np.max(self.region_start_fraction):
+            raise ValueError("Region start upper bound must be more than region end upper bound!")
+
+        # validate clip
+        if self.clip is not None:
+            are_valid_bounds(self.clip)
+
+    def _generate_parameters(self):
+        """Generate parameters for augmentations. Requires `self.n_regions` to be set
+
+        Sets
+        ----
+        self.multiplying_coefs
+        self.n_regions
+        self.region_starts
+        self.region_ends
+        """
+
+        if self.should_generate_k:
+            self.n_regions = np.random.randint(self.k[0], self.k[1])
+        else:
+            self.n_regions = self.k
+
+        if self.should_generate_coef:
+            self.multiplying_coefs = np.random.uniform(self.c[0], self.c[1], size=self.n_regions)
+        else:
+            self.multiplying_coefs = np.ones(shape=self.n_regions) * self.c
+
+        if self.should_generate_start:
+            # Generate number between 0 and lower bound of the end for each region
+            self.region_starts = np.array(
+                [np.random.uniform(0, np.min(self.region_end_fraction)) for _ in range(self.n_regions)])
+        else:
+            self.region_starts = np.array([self.region_start_fraction] * self.n_regions)
+
+        if self.should_generate_end:
+            self.region_ends = np.array(
+                [np.random.uniform(start, 1) for start in self.region_starts])
+        else:
+            self.region_ends = np.array([self.region_end_fraction] * self.n_regions)
+
+    def __call__(self, x: np.array) -> np.array:
+        augmented_array = x.copy()
+
+        for coef, region_start, region_end in zip(self.multiplying_coefs, self.region_starts, self.region_ends):
+            start_idx = int(len(x) * region_start)
+            end_idx = int(len(x) * region_end)
+
+            augmented_array = self.change_region_amplitude(
+                augmented_array, coef, from_=start_idx, to=end_idx, clip=self.clip)
+
+        return augmented_array
+
+    def visualize(self, x: np.array, vertical=True, figwidth=8, figheight=8):
+        fig, axes = super().visualize(x, vertical, figwidth, figheight)
+
+        fig.suptitle(f"k: {self.n_regions}, "
+                     f"c: [{numbers_array_to_string(self.multiplying_coefs)}], "
+                     f"region_start_fraction: [{numbers_array_to_string(self.region_starts)}], "
+                     f"region_end_fraction: [{numbers_array_to_string(self.region_ends)}]",
+                     fontweight="bold")
         fig.tight_layout()
 
         return axes
