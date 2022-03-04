@@ -5,6 +5,8 @@ from scipy.interpolate import interp1d
 
 from .validations import is_valid_coefficient, is_valid_probability, are_valid_bounds, are_valid_probability_bounds, \
                          is_valid_positive_integer
+from .utils import numbers_array_to_string
+
 
 class Augmentation:
     def _validate_parameters(self):
@@ -296,7 +298,7 @@ class DropRandomRegions(Augmentation):
         fig, axes = super().visualize(x, vertical, figwidth, figheight)
 
         # Convert array of probabilities to string: e.g [0.123, 0.857, 0.406] -> "0.12, 0.86, 0.41"
-        dropping_probabilities = ", ".join(map(str, self.dropping_proportions.round(2)))
+        dropping_probabilities = numbers_array_to_string(self.dropping_proportions)
 
         fig.suptitle(f'k: {self.regions_dropped}, p: [{dropping_probabilities}]', fontweight="bold")
         fig.tight_layout()
