@@ -1,4 +1,4 @@
-from typing import Sized, Union, Optional
+from typing import Sized, Union, Optional, List
 
 import numpy as np
 from scipy.interpolate import interp1d
@@ -562,6 +562,55 @@ class ChangeAmplitude(Augmentation):
                      f"region_end_fraction: [{numbers_array_to_string(self.region_ends)}] "
                      f"smooth: {self.smooth}",
                      fontweight="bold")
+        fig.tight_layout()
+
+        return axes
+
+
+class Pipeline(Augmentation):
+    def __init__(self, augmentations: List[Augmentation], k: Optional[Union[int, Sized]]):
+        self.augmentations = augmentations
+        self.k = k or len(augmentations)  # If k is None, use all the augmentations
+
+        self.n_augmentations = None
+        self.should_generate_k = None
+        self.used_augmentations = None
+
+        self._validate_parameters()
+
+    def _validate_parameters(self):
+        try:
+            is_valid_positive_integer(self.k)
+            self.should_generate_k = False
+            self.n_augmentations = self.k
+
+        except (ValueError, TypeError):
+            is_valid = are_valid_bounds(self.k)
+            self.should_generate_k = True
+
+            if not is_valid:
+                raise ValueError(f"{self.k} can't be validated as a parameter k and is probably incorrect")
+
+    def __call__(self, x: np.array):
+        if self.should_generate_k:
+            self.n_augmentations = np.random.randint(self.k[0], self.k[1])
+
+        self.used_augmentations = []
+
+        augmented_array = x.copy()
+
+        for _ in range(self.n_augmentations):
+            augmentation = np.random.choice(self.augmentations)
+            self.used_augmentations.append(augmentation)
+
+            augmented_array = augmentation(augmented_array)
+
+        return augmented_array
+
+    def visualize(self, x: np.array, vertical=True, figwidth=8, figheight=8):
+        fig, axes = super().visualize(x, vertical=vertical, figwidth=figwidth, figheight=figheight)
+
+        fig.suptitle(f"N augmentations: {self.n_augmentations}")
         fig.tight_layout()
 
         return axes
