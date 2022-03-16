@@ -330,10 +330,58 @@ class ChangeAmplitude(Augmentation):
     clip : tuple of 2 floats (optional)
         Minimum and maximum possible value of the curve amplitude. E.g., if clip=(0, 1), the amplitude of the augmented
         curve will be clipped between 0 and 1.
+    smooth : bool = False
+        If True, change region amplitude smoothly, from a tiny change at the start of the region to
+        the peak in its center
     """
+
+    @staticmethod
+    def normal_distribution_density(x, mean, sd):
+        """Generate PDF of normal distribution with given parameters in the point `x`"""
+        return np.exp(-(x - mean) ** 2 / (2 * sd ** 2)) / np.sqrt(np.pi * sd ** 2)
+
+    @staticmethod
+    def get_smooth_change(array: np.array, coef: float) -> np.array:
+        """Smoothly increase/decrease `array` by `coef`
+
+        array: np.array
+            Time-series you want to change
+        coef: float
+            A number by which you want to multiply array. Changes will be equals to that number
+            int the middle of `array` and slowly increasing/decreasing in the edges
+
+        Returns
+        -------
+        Augmented `array`, which is smoothly multiplied by `coef`
+        """
+        difference = array * coef
+
+        # Generate normal distribution for smooth change in amplitude
+        mean = len(difference) / 2
+        sd = len(difference) / 3
+        normal_dist = np.array([
+            ChangeAmplitude.normal_distribution_density(x, mean, sd) for x in range(len(difference))
+        ])
+
+        # Make it from 0 to 1
+        normal_dist = (normal_dist - np.min(normal_dist)) / (np.max(normal_dist) - np.min(normal_dist))
+
+        # Renormalize normal dist to a height of difference
+        if coef < 1:
+            normal_dist *= (1 - coef)  # Make it from 0 to (1 - coef)
+            normal_dist = 1 - normal_dist  # Make it from 1 to coef
+        else:
+            normal_dist *= (coef - 1)  # Make it from 0 to (coef - 1)
+            normal_dist = 1 + normal_dist  # Make it from 1 to coef
+
+        array *= normal_dist
+
+        return array
+
     @staticmethod
     def change_region_amplitude(
-            x: np.array, coef: float, from_: int = 0, to: Optional[int] = None, clip: Optional[tuple] = None
+            x: np.array, coef: float, from_: int = 0, to: Optional[int] = None,
+            clip: Optional[tuple] = None, smooth: bool = False
     ) -> np.array:
         """Multiply each point of `x` by `coef` between `from` and `to` indexes
 
@@ -352,6 +400,9 @@ class ChangeAmplitude(Augmentation):
         clip : Optional[tuple] = None
             If set, must be a tuple with 2 elements: minumum and maximum possible values of the amplitude. E.g. if
             curve values must be between 0 and 1, provide clip=(0, 1)
+        smooth : bool = False
+            If True, change region amplitude smoothly, from a tiny change at the start of the region to
+            the peak in its center
 
         Returns
         -------
@@ -362,7 +413,11 @@ class ChangeAmplitude(Augmentation):
             to = len(x)
 
         new_array = x.copy()
-        new_array[from_: to] *= coef
+
+        if smooth:
+            new_array[from_: to] = ChangeAmplitude.get_smooth_change(new_array[from_: to], coef)
+        else:
+            new_array[from_: to] *= coef
 
         if clip is not None:
             new_array = np.clip(new_array, clip[0], clip[1])
@@ -371,13 +426,14 @@ class ChangeAmplitude(Augmentation):
 
     def __init__(
            self, c: Union[float, Sized], k: Union[int, Sized], region_start_fraction: Union[float, Sized] = 0,
-           region_end_fraction: Optional[Union[float, Sized]] = None, clip: Optional[tuple] = None
+           region_end_fraction: Optional[Union[float, Sized]] = None, clip: Optional[tuple] = None, smooth: bool = False
     ):
         self.c = c
         self.k = k
         self.region_start_fraction = region_start_fraction
         self.region_end_fraction = region_end_fraction or 1
         self.clip = clip
+        self.smooth = smooth
 
         self.multiplying_coefs = None
         self.n_regions = None
@@ -493,7 +549,7 @@ class ChangeAmplitude(Augmentation):
             end_idx = int(len(x) * region_end)
 
             augmented_array = self.change_region_amplitude(
-                augmented_array, coef, from_=start_idx, to=end_idx, clip=self.clip)
+                augmented_array, coef, from_=start_idx, to=end_idx, clip=self.clip, smooth=self.smooth)
 
         return augmented_array
 
@@ -503,7 +559,8 @@ class ChangeAmplitude(Augmentation):
         fig.suptitle(f"k: {self.n_regions}, "
                      f"c: [{numbers_array_to_string(self.multiplying_coefs)}], "
                      f"region_start_fraction: [{numbers_array_to_string(self.region_starts)}], "
-                     f"region_end_fraction: [{numbers_array_to_string(self.region_ends)}]",
+                     f"region_end_fraction: [{numbers_array_to_string(self.region_ends)}] "
+                     f"smooth: {self.smooth}",
                      fontweight="bold")
         fig.tight_layout()
 
