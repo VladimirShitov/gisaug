@@ -567,6 +567,55 @@ class ChangeAmplitude(Augmentation):
         return axes
 
 
+class AddNoise(Augmentation):
+    """
+    Augmentation, that adds normally distributed noise to the curve
+
+    Parameters
+    ----------
+    mean : float = 0
+        Bias of the noise. If 0, noise is not biased. If positive, noise usually increases the curve's amplitude.
+        If negative, noise usually decreases the curve's amplitude
+    std : Optional[float] = None
+        Standard deviation of the noise. If not provided, it is set as 10% of the standard deviation of the curve
+        amplitudes distribution
+    clip : tuple of 2 floats (optional)
+        Minimum and maximum possible value of the curve amplitude. E.g., if clip=(0, 1), the amplitude of the augmented
+        curve will be clipped between 0 and 1.
+    """
+    def __init__(self, mean: float = 0, std: Optional[float] = None, clip: Optional[tuple] = None):
+        self.mean = mean
+        self.std = std
+        self.clip = clip
+
+    def _validate_parameters(self):
+        is_valid_coefficient(self.std)
+
+        if self.clip is not None:
+            are_valid_bounds(self.clip)
+
+    def __call__(self, x: np.array) -> np.array:
+        if self.std is None:
+            self.std = np.std(x) / 10
+
+        noise = np.random.normal(self.mean, self.std, size=len(x))
+
+        new_array = x + noise
+
+        if self.clip is not None:
+            new_array = np.clip(new_array, self.clip[0], self.clip[1])
+
+        return new_array
+
+    def visualize(self, x: np.array, vertical=True, figwidth=8, figheight=8):
+        fig, axes = super().visualize(x, vertical=vertical, figwidth=figwidth, figheight=figheight)
+
+        fig.suptitle(f"Noise with mean {round(self.mean, 3)} and std {round(self.std, 3)}")
+        fig.tight_layout()
+
+        return axes
+
+
 class Pipeline(Augmentation):
     def __init__(self, augmentations: List[Augmentation], k: Optional[Union[int, Sized]]):
         self.augmentations = augmentations
